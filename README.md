@@ -31,3 +31,22 @@
 5. (MP-4, paso 6) Si mañana llega el archivo del 25 y corres otra vez el cierre del 25, ¿será otra instancia u otra ejecución de la misma? ¿Por qué lo crees?
 
    Respuesta: Creo que será otra ejecución de la misma instancia. La instancia del 25 ya existe (mismo Job y misma fecha), y quedó `FAILED`, no `COMPLETED`. Spring Batch solo bloquea las instancias completas, así que debería dejarme reintentarla, y eso dejaría una segunda ejecución ligada a la misma instancia. 
+
+   ## Día 2 · El primer chunk
+
+### Boleto de salida
+
+1. ¿Qué diferencia hay entre un step de tipo Tasklet y uno de tipo chunk?
+Un tasklet es un step simple, es decir, que no esta orientado a items (o unidad de datos como la fila de un archivo CSV). Ejecuta una tarea concreta como borrar un archivo, ejecutar un SQL o preparar directorios. Un chunk lee, procesa y escribe cada item y lo acumula hasta el tamaño de chunk para posteriormente hacer un commit y repite la accion hasta que el reader devuevle un null.  
+2. ¿Qué hace cada una de las tres piezas de un chunk? ¿Cuál es opcional?
+El ItemReader es OBLIGATORIO, lo que hace es leer el item una vez y cuando ya no hay más, devuelve un null y termina el step
+El ItemProcessor es OPCIONAL, transforma, valida y filtra items, si devuelve un null, ese ítem se descarta y no llega al writer 
+El ItemWriter es OBLIGATORIO. Recibe el chunk completo y lo escribre en lote.
+Si no se configura ItemProcessor, el item leido pasa directamente al writer.
+3. Con 45 movimientos y chunks de 10, ¿cuántos commits habría? ¿Y con chunks de 50?
+Con chunk de 10= Se forman 5 commits de 4 de 10 y 1 de 5
+Mientras que con el chunk de 50= los 45 movimientos caben en un solo bloque, por lo que es solo 1 commit 
+4. ¿Por qué el Escritor recibe el chunk completo y no un movimiento a la vez?
+Porque el ItemWriter está diseñado para escribir todo en lote. Su API recibe un chunk lo que permite operaciones eficientes como escritura de archivos en bloque, inserciones masivas, llamadas agrupadas, etc. 
+5. Mi predicción de la MP-3, paso 1: ¿qué habría pasado sin el Procesador?
+El 2 de octubre llegaron movimientos con valores de tipo “sucios”. El Procesador es la pieza que los limpia y normaliza antes de que el Writer los inserte en MySQL. Si se corre el cierre sin el Procesador, esos valores crudos llegan tal cual a la tabla, sin normalizar. Es decir, veriamos distintas variantes de los valores de tipo, unas con mayusculas otras totalmente en minisculas, sin tildes, con tildes, espacios al inicio o al final o con sinónimos. En lugar de existir 2 grupos, existirian muchos más, haciendo que las sumas queden incorrectas  
