@@ -50,3 +50,20 @@ Mientras que con el chunk de 50= los 45 movimientos caben en un solo bloque, por
 Porque el ItemWriter está diseñado para escribir todo en lote. Su API recibe un chunk lo que permite operaciones eficientes como escritura de archivos en bloque, inserciones masivas, llamadas agrupadas, etc. 
 5. Mi predicción de la MP-3, paso 1: ¿qué habría pasado sin el Procesador?
 El 2 de octubre llegaron movimientos con valores de tipo “sucios”. El Procesador es la pieza que los limpia y normaliza antes de que el Writer los inserte en MySQL. Si se corre el cierre sin el Procesador, esos valores crudos llegan tal cual a la tabla, sin normalizar. Es decir, veriamos distintas variantes de los valores de tipo, unas con mayusculas otras totalmente en minisculas, sin tildes, con tildes, espacios al inicio o al final o con sinónimos. En lugar de existir 2 grupos, existirian muchos más, haciendo que las sumas queden incorrectas  
+
+
+## Día 3 · Parámetros, fallas y reinicio
+
+### Boleto de salida
+
+1. ¿Qué diferencia hay entre una JobInstance y una JobExecution? Usa como ejemplo el cierre del 25.
+El JobInstance es la definición lógica de la ejecución de un proceso para un conjunto específico de parámetros de entrada por ejemplo: 2026-12-25, el JobExecutio es cada vez que ese Job se ejecuta realemnte con esa configuración 
+2. ¿En qué caso Spring Batch se niega a correr un cierre, y en qué caso lo reinicia?
+Se niega a correr cuando el JobInstance ya se completó exitosamente y se reinicia cuando la ejecución anterior quedo en estado de FAILED o STOPPED desde el step que falló 
+3. En el reinicio del día 5, ¿por qué el step de carga leyó 10 movimientos y no 20?
+Porque cuando falla un renglon, el chunk completo donde este venía es descartado completamente 
+4. ¿Qué diferencia hay entre un movimiento **filtrado** y uno **omitido**? 
+Un movimiento filtrado ocurre dentro del ItemProcessor al retornar un null. El framework detecta este valor y no envía el registro al ItemWriter sin considerarlo un error y el movimiento omitido se activa al capturar una excepción durante la lectura, procesamiento o escritura de un step evitando que el Job aborte y "guardandolo" para su revisión a parte  
+5. ¿Por qué importa el código de salida, si el estado ya queda en las tablas?
+Porque para Batch, aunque se haya encontrado un error en un Job, este va a sacar siempre un Código de salida 0 que quiere decir que el Job se completó, pero para el planificador del banco (Control-M) todo está ok. 
+El código de salida del Job no muestra el error, solo que se completó, aunque haya un error, cosa que no ve el planificador. En este ejemplo se agrega SpringApplication.Exit para obtener un valor de 5 para cuando falla el job y ese valor se interpreta como un FAILED.
