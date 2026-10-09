@@ -67,3 +67,25 @@ Un movimiento filtrado ocurre dentro del ItemProcessor al retornar un null. El f
 5. ¿Por qué importa el código de salida, si el estado ya queda en las tablas?
 Porque para Batch, aunque se haya encontrado un error en un Job, este va a sacar siempre un Código de salida 0 que quiere decir que el Job se completó, pero para el planificador del banco (Control-M) todo está ok. 
 El código de salida del Job no muestra el error, solo que se completó, aunque haya un error, cosa que no ve el planificador. En este ejemplo se agrega SpringApplication.Exit para obtener un valor de 5 para cuando falla el job y ese valor se interpreta como un FAILED.
+
+## Día 4 · De MySQL a MongoDB
+
+### Boleto de salida
+
+1. ¿Qué hace cada uno de los tres steps de tu Job, y de qué tipo es cada uno?
+El verificarArchivoStep es un step de tipo tasklet, que realiza una validación inicial simple, como comprobar que el archivo de entrada realmente exista en el directorio y esté listo para usarse antes de arrancar el trabajo pesado.
+cargarMovimientosStep es de tipo chunk-oriented que extrae los datos del archivo verificado, los procesa renglon por renglon y los inserta en la base de datos
+El publicarSaldosStep es también un step de tipo chunk-oriented, cuyo objetivo principal es leer la información ya consolidada de los saldos directamente desde la base de datos para exportarla, ya sea escribiéndola en un nuevo archivo de salida o publicándola hacia otro sistema.
+2. ¿Por qué el cierre del 9 no duplicó los saldos, y el del 10 (sin `@Id`) sí?
+Porque mongoWriter guarda cada documento por su _id, si ya existe uno con ese _id, solo lo reemplaza, si no existe lo crea.
+Sin el @id, mongoWriter no tiene ofmra de biscar el documento de cada cuenta, por lo que crea un nuevo _id y se duplica
+3. Al reiniciar el cierre del 11, ¿por qué no se cargó otra vez el archivo? 
+Batch está pensado y diseñado para que no se repitan los steps que ya se confirmaron como terminados, solo se descarta el chunk que tiene el error, y al reiniciar, todo se vuelve a cargar a partir del útimo chunk completado.
+4. ¿Qué diferencia hay entre `spring-boot-starter-data-mongodb` y «Spring Batch MongoDB» (`batch-data-mongodb`)?
+spring-boot-starter-data-mongodb sirve para la lógica de negocio, ya que te permite usar MongoDB como base de datos para entidades y consultas, mientras que spring-boot-starter-batch-data-mongodb está pensado para la infraestructura de Spring Batch, porque le indica al framework que use MongoDB para guardar su estado interno de jobs, steps y ejecuciones; ambos terminan conectando la aplicación a MongoDB, pero lo hacen con propósitos distintos: uno para los datos y el otro para los metadatos del procesamiento por lotes.
+## Lo que aprendí esta semana
+
+(Con tus palabras, en 5 a 10 renglones: qué es un proceso batch, qué piezas tiene un Job y qué hace Spring
+Batch cuando algo falla.)
+Un proceso Batch es una forma de procesar grandes volúmenes de datos de manera automática sin intervención humana, en momentos programados y por lotes, a este proceso completo se le llama job y está conformado por varios steps que son etapas que ejecutan el trabajo, las etapas son, lectura, procesamiento y escritura.
+Cuando algo falla, Batch registra el error y el punto exacto donde ocurrió dentro los metadatos (JobRepository) y según se configure, puede reintentarse, omitirse o detenerse (jamás se debe de detener en el contexto de un banco)
